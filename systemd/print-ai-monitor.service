@@ -1,0 +1,16 @@
+[Unit]
+Description=Print AI Monitor webhook service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/opt/print-ai-monitor
+EnvironmentFile=/opt/print-ai-monitor/.env
+ExecStart=/opt/print-ai-monitor/.venv/bin/print-ai-monitor serve
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

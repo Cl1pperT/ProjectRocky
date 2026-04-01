@@ -1,0 +1,2 @@
+[console_scripts]
+print-ai-monitor = print_ai_monitor.cli:main
