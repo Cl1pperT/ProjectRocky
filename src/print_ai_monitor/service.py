@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from datetime import datetime
 from hmac import compare_digest
-from typing import Any
+from typing import Any, Callable
 
 from print_ai_monitor.config import Settings
 from print_ai_monitor.dedupe import PrintDeduper
@@ -23,11 +24,13 @@ class WebhookService:
         settings: Settings,
         plug_controller: TapoPlugController,
         deduper: PrintDeduper | None = None,
+        now_provider: Callable[[], datetime] | None = None,
     ) -> None:
         self._settings = settings
         self._plug_controller = plug_controller
         self._deduper = deduper or PrintDeduper(settings.dedupe_ttl_seconds)
         self._logger = logging.getLogger(__name__)
+        self._now_provider = now_provider or datetime.now
 
     async def handle_payload(self, payload: dict[str, Any]) -> ServiceResponse:
         event_type = payload.get("EventType")
@@ -69,6 +72,20 @@ class WebhookService:
                 accepted_event_types=self._settings.trigger_event_types,
             )
             return ServiceResponse(200, {"status": "ignored", "reason": "event_type"})
+
+        current_time = self._now_provider().time()
+        if not self._settings.is_within_power_cut_window(current_time):
+            log_event(
+                self._logger,
+                logging.INFO,
+                "webhook_ignored",
+                reason="outside_power_cut_window",
+                event_type=event_type,
+                print_id=print_id,
+                power_cut_start_hour=self._settings.power_cut_start_hour,
+                power_cut_end_hour=self._settings.power_cut_end_hour,
+            )
+            return ServiceResponse(200, {"status": "ignored", "reason": "outside_power_cut_window"})
 
         if print_id and not self._deduper.try_mark(print_id):
             log_event(

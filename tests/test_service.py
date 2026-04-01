@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 
 import pytest
 
@@ -29,6 +30,8 @@ def build_settings() -> Settings:
         tapo_username="user@example.com",
         tapo_password="pass",
         trigger_event_types=(7, 8),
+        power_cut_start_hour=21,
+        power_cut_end_hour=9,
         dedupe_ttl_seconds=60,
         plug_off_retry_count=2,
     )
@@ -36,7 +39,11 @@ def build_settings() -> Settings:
 
 @pytest.mark.asyncio
 async def test_secret_validation_rejects_wrong_secret() -> None:
-    service = WebhookService(build_settings(), FakePlugController())
+    service = WebhookService(
+        build_settings(),
+        FakePlugController(),
+        now_provider=lambda: datetime(2026, 3, 31, 22, 0, 0),
+    )
     response = await service.handle_payload({"EventType": 8, "SecretKey": "wrong"})
     assert response.status_code == 401
     assert response.payload == {"detail": "Invalid secret"}
@@ -45,7 +52,11 @@ async def test_secret_validation_rejects_wrong_secret() -> None:
 @pytest.mark.asyncio
 async def test_ignores_non_trigger_event() -> None:
     plug = FakePlugController()
-    service = WebhookService(build_settings(), plug)
+    service = WebhookService(
+        build_settings(),
+        plug,
+        now_provider=lambda: datetime(2026, 3, 31, 22, 0, 0),
+    )
     response = await service.handle_payload({"EventType": 3, "SecretKey": "super-secret"})
     assert response.status_code == 200
     assert response.payload == {"status": "ignored", "reason": "event_type"}
@@ -55,7 +66,11 @@ async def test_ignores_non_trigger_event() -> None:
 @pytest.mark.asyncio
 async def test_event_type_7_triggers_power_cut() -> None:
     plug = FakePlugController()
-    service = WebhookService(build_settings(), plug)
+    service = WebhookService(
+        build_settings(),
+        plug,
+        now_provider=lambda: datetime(2026, 3, 31, 22, 0, 0),
+    )
     response = await service.handle_payload({"EventType": 7, "SecretKey": "super-secret"})
     assert response.status_code == 200
     assert response.payload == {"status": "success", "action": "plug_off"}
@@ -63,9 +78,28 @@ async def test_event_type_7_triggers_power_cut() -> None:
 
 
 @pytest.mark.asyncio
+async def test_trigger_is_ignored_outside_power_cut_window() -> None:
+    plug = FakePlugController()
+    service = WebhookService(
+        build_settings(),
+        plug,
+        now_provider=lambda: datetime(2026, 4, 1, 14, 0, 0),
+    )
+    response = await service.handle_payload({"EventType": 8, "SecretKey": "super-secret"})
+    assert response.status_code == 200
+    assert response.payload == {"status": "ignored", "reason": "outside_power_cut_window"}
+    assert plug.calls == 0
+
+
+@pytest.mark.asyncio
 async def test_duplicate_print_id_is_suppressed() -> None:
     plug = FakePlugController()
-    service = WebhookService(build_settings(), plug, deduper=PrintDeduper(ttl_seconds=600))
+    service = WebhookService(
+        build_settings(),
+        plug,
+        deduper=PrintDeduper(ttl_seconds=600),
+        now_provider=lambda: datetime(2026, 3, 31, 22, 0, 0),
+    )
     payload = {"EventType": 8, "SecretKey": "super-secret", "PrintId": "print-123"}
 
     first = await service.handle_payload(payload)
@@ -81,7 +115,12 @@ async def test_duplicate_print_id_is_suppressed() -> None:
 @pytest.mark.asyncio
 async def test_failed_trigger_clears_dedupe_marker_for_retry() -> None:
     plug = FakePlugController(attempts_before_success=99)
-    service = WebhookService(build_settings(), plug, deduper=PrintDeduper(ttl_seconds=600))
+    service = WebhookService(
+        build_settings(),
+        plug,
+        deduper=PrintDeduper(ttl_seconds=600),
+        now_provider=lambda: datetime(2026, 3, 31, 22, 0, 0),
+    )
     payload = {"EventType": 8, "SecretKey": "super-secret", "PrintId": "print-456"}
 
     first = await service.handle_payload(payload)

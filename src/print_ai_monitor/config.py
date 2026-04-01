@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from datetime import time
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -20,6 +21,8 @@ class Settings:
     tapo_username: str = ""
     tapo_password: str = ""
     trigger_event_types: tuple[int, ...] = (7, 8)
+    power_cut_start_hour: int = 21
+    power_cut_end_hour: int = 9
     dedupe_ttl_seconds: int = 900
     plug_off_retry_count: int = 2
     log_level: str = "INFO"
@@ -39,10 +42,23 @@ class Settings:
             tapo_username=os.getenv("TAPO_USERNAME", "").strip(),
             tapo_password=os.getenv("TAPO_PASSWORD", "").strip(),
             trigger_event_types=_event_types_env(),
+            power_cut_start_hour=_int_env("POWER_CUT_START_HOUR", 21, minimum=0, maximum=23),
+            power_cut_end_hour=_int_env("POWER_CUT_END_HOUR", 9, minimum=0, maximum=23),
             dedupe_ttl_seconds=_int_env("DEDUPE_TTL_SECONDS", 900, minimum=1),
             plug_off_retry_count=_int_env("PLUG_OFF_RETRY_COUNT", 2, minimum=0),
             log_level=os.getenv("LOG_LEVEL", "INFO").strip().upper() or "INFO",
         )
+
+    def is_within_power_cut_window(self, current_time: time) -> bool:
+        start = self.power_cut_start_hour
+        end = self.power_cut_end_hour
+        hour = current_time.hour
+
+        if start == end:
+            return True
+        if start < end:
+            return start <= hour < end
+        return hour >= start or hour < end
 
     def validate_for_server(self) -> None:
         missing = [
