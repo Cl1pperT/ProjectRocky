@@ -21,6 +21,14 @@ class PlugProbeResult:
     is_on: bool
 
 
+@dataclass(frozen=True, slots=True)
+class PlugToggleResult:
+    host: str
+    alias: str | None
+    before: bool
+    after: bool
+
+
 class TapoPlugController:
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
@@ -72,6 +80,32 @@ class TapoPlugController:
         if last_error is not None:
             raise PlugControlError(message) from last_error
         raise PlugControlError(message)
+
+    async def toggle(self) -> PlugToggleResult:
+        device = await Discover.discover_single(
+            self._settings.tapo_host,
+            username=self._settings.tapo_username,
+            password=self._settings.tapo_password,
+        )
+        if device is None:
+            raise PlugControlError(f"No TAPO device discovered at {self._settings.tapo_host}")
+
+        try:
+            await device.update()
+            before = device.is_on
+            if before:
+                await device.turn_off()
+            else:
+                await device.turn_on()
+            await device.update()
+            return PlugToggleResult(
+                host=device.host,
+                alias=device.alias,
+                before=before,
+                after=device.is_on,
+            )
+        finally:
+            await device.disconnect()
 
     async def _turn_off_once(self) -> None:
         device = await Discover.discover_single(

@@ -45,6 +45,13 @@ Check that the TAPO plug can be reached:
 print-ai-monitor probe-plug
 ```
 
+Toggle the configured TAPO plug:
+
+```bash
+. .venv/bin/activate
+PYTHONPATH=src python scripts/toggle_tapo_plug.py
+```
+
 Start the webhook service:
 
 ```bash

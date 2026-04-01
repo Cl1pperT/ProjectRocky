@@ -1,0 +1,14 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Toggle TAPO Plug",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/toggle_tapo_plug.py",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "envFile": "${workspaceFolder}/.env"
+    }
+  ]
+}
