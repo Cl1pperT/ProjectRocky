@@ -18,6 +18,7 @@ class Settings:
     port: int = 8787
     octoeverywhere_secret: str = ""
     tapo_host: str = ""
+    tapo_alias: str = ""
     tapo_username: str = ""
     tapo_password: str = ""
     trigger_event_types: tuple[int, ...] = (7, 8)
@@ -39,6 +40,7 @@ class Settings:
             port=_int_env("PORT", 8787, minimum=1, maximum=65535),
             octoeverywhere_secret=os.getenv("OCTOEVERYWHERE_SECRET", "").strip(),
             tapo_host=os.getenv("TAPO_HOST", "").strip(),
+            tapo_alias=os.getenv("TAPO_ALIAS", "").strip(),
             tapo_username=os.getenv("TAPO_USERNAME", "").strip(),
             tapo_password=os.getenv("TAPO_PASSWORD", "").strip(),
             trigger_event_types=_event_types_env(),
@@ -65,12 +67,13 @@ class Settings:
             name
             for name, value in (
                 ("OCTOEVERYWHERE_SECRET", self.octoeverywhere_secret),
-                ("TAPO_HOST", self.tapo_host),
                 ("TAPO_USERNAME", self.tapo_username),
                 ("TAPO_PASSWORD", self.tapo_password),
             )
             if not value
         ]
+        if not self.tapo_alias and not self.tapo_host:
+            missing.append("TAPO_ALIAS or TAPO_HOST")
         if missing:
             raise ConfigError(f"Missing required settings: {', '.join(missing)}")
 
@@ -78,12 +81,13 @@ class Settings:
         missing = [
             name
             for name, value in (
-                ("TAPO_HOST", self.tapo_host),
                 ("TAPO_USERNAME", self.tapo_username),
                 ("TAPO_PASSWORD", self.tapo_password),
             )
             if not value
         ]
+        if not self.tapo_alias and not self.tapo_host:
+            missing.append("TAPO_ALIAS or TAPO_HOST")
         if missing:
             raise ConfigError(f"Missing required settings: {', '.join(missing)}")
 

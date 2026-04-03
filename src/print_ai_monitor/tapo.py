@@ -35,13 +35,7 @@ class TapoPlugController:
         self._logger = logging.getLogger(__name__)
 
     async def probe(self) -> PlugProbeResult:
-        device = await Discover.discover_single(
-            self._settings.tapo_host,
-            username=self._settings.tapo_username,
-            password=self._settings.tapo_password,
-        )
-        if device is None:
-            raise PlugControlError(f"No TAPO device discovered at {self._settings.tapo_host}")
+        device = await self._resolve_device()
 
         try:
             await device.update()
@@ -82,13 +76,7 @@ class TapoPlugController:
         raise PlugControlError(message)
 
     async def toggle(self) -> PlugToggleResult:
-        device = await Discover.discover_single(
-            self._settings.tapo_host,
-            username=self._settings.tapo_username,
-            password=self._settings.tapo_password,
-        )
-        if device is None:
-            raise PlugControlError(f"No TAPO device discovered at {self._settings.tapo_host}")
+        device = await self._resolve_device()
 
         try:
             await device.update()
@@ -108,6 +96,20 @@ class TapoPlugController:
             await device.disconnect()
 
     async def _turn_off_once(self) -> None:
+        device = await self._resolve_device()
+
+        try:
+            await device.update()
+            await device.turn_off()
+        finally:
+            await device.disconnect()
+
+    async def _resolve_device(self):
+        if self._settings.tapo_alias:
+            return await self._discover_by_alias()
+        return await self._discover_by_host()
+
+    async def _discover_by_host(self):
         device = await Discover.discover_single(
             self._settings.tapo_host,
             username=self._settings.tapo_username,
@@ -115,9 +117,32 @@ class TapoPlugController:
         )
         if device is None:
             raise PlugControlError(f"No TAPO device discovered at {self._settings.tapo_host}")
+        return device
 
-        try:
-            await device.update()
-            await device.turn_off()
-        finally:
-            await device.disconnect()
+    async def _discover_by_alias(self):
+        devices = await Discover.discover(
+            username=self._settings.tapo_username,
+            password=self._settings.tapo_password,
+        )
+
+        target_alias = self._settings.tapo_alias.casefold()
+        matches = []
+        for device in devices.values():
+            try:
+                await device.update()
+                alias = (device.alias or "").strip()
+                if alias.casefold() == target_alias:
+                    matches.append(device)
+                else:
+                    await device.disconnect()
+            except Exception:
+                await device.disconnect()
+                raise
+
+        if not matches:
+            raise PlugControlError(f"No TAPO device discovered with alias {self._settings.tapo_alias!r}")
+        if len(matches) > 1:
+            for device in matches:
+                await device.disconnect()
+            raise PlugControlError(f"Multiple TAPO devices matched alias {self._settings.tapo_alias!r}")
+        return matches[0]

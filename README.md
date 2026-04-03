@@ -17,7 +17,7 @@
 - Raspberry Pi Zero 2 W or better
 - Python 3.11+
 - OctoEverywhere already installed
-- TAPO P125M already paired to your LAN and reachable by IP
+- TAPO P125M already paired to your LAN and reachable by alias or IP
 - The Pi must stay on separate power from the printer plug
 
 ## Install
@@ -33,12 +33,15 @@ cp .env.example .env
 Edit `.env` and set:
 
 - `OCTOEVERYWHERE_SECRET`
-- `TAPO_HOST`
+- `TAPO_ALIAS=Printer`
+- `TAPO_HOST` as an optional fallback if you prefer a fixed IP
 - `TAPO_USERNAME`
 - `TAPO_PASSWORD`
 - `TRIGGER_EVENT_TYPES=7,8`
 - `POWER_CUT_START_HOUR=21`
 - `POWER_CUT_END_HOUR=9`
+
+If `TAPO_ALIAS` is set, the service will scan the LAN and pick the plug whose alias matches that value case-insensitively. If `TAPO_ALIAS` is blank, it falls back to `TAPO_HOST`.
 
 ## Local Commands
 
@@ -95,7 +98,7 @@ pytest
 
 ## Manual Verification
 
-1. Run `print-ai-monitor probe-plug` and confirm the plug is discovered.
+1. Run `print-ai-monitor probe-plug` and confirm the expected plug alias is discovered.
 2. Start the service and verify `curl http://127.0.0.1:8787/healthz` returns `{"status":"ok"}`.
 3. Use OctoEverywhere's webhook test and confirm the service logs an ignored event.
 4. Send a local sample trigger:
